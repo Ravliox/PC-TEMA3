@@ -7,8 +7,10 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <errno.h>
 
 
+#define MAXLEN 50000
 #define MAX_CLIENTS 5
 #define BUFLEN 256
 
@@ -18,12 +20,13 @@ void error(char *msg)
     exit(1);
 }
 
-struct in_addr* gethost(char *name)
+char* gethost(char *name)
 {
 	struct hostent* result = malloc (sizeof(struct hostent*));
+	printf ("%d", strlen(name));
     result = gethostbyname(name);
-    printf("%s\n", result->h_name);
-    char **t = result->h_aliases;
+    //printf("%s\n", result->h_name);
+    //char **t = result->h_aliases;
 
     struct in_addr **a = malloc(sizeof(struct in_addr **));
     a = result->h_addr_list;
@@ -31,8 +34,62 @@ struct in_addr* gethost(char *name)
     struct in_addr *l = malloc(sizeof(struct in_addr *));
     char *line = malloc(200);
     line = inet_ntoa(**a);
-    printf("%s\n", line);
-	return l;
+    printf("ADDRES: %s\n", line);
+	return line;
+}
+
+ssize_t Readline(int sockd, void * vptr, size_t maxlen) {
+    ssize_t n, rc;
+    char c, * buffer;
+
+    buffer = vptr;
+
+    for (n = 1; n < maxlen; n++) {
+        if ((rc = read(sockd, & c, 1)) == 1) { * buffer++ = c;
+            if (c == '\n')
+                break;
+        } else if (rc == 0) {
+            if (n == 1)
+                return 0;
+            else
+                break;
+        } else {
+            if (errno == EINTR)
+                continue;
+            return -1;
+        }
+    }
+
+    // * b
+	printf("%s", buffer);
+    return n;
+}
+
+/**
+ * Trimite o comanda HTTP si asteapta raspuns de la server.
+ * Comanda trebuie sa fie in buffer-ul sendbuf.
+ * Sirul expected contine inceputul raspunsului pe care
+ * trebuie sa-l trimita serverul in caz de succes (de ex. codul
+ * 200). Daca raspunsul semnaleaza o eroare se iese din program.
+ */
+void send_command(int sockfd, char sendbuf[], char * expected) {
+    char recvbuf[MAXLEN];
+    char header[MAXLEN];
+    int nbytes;
+    // sprintf (header, "Content-type: text/html\n\n");
+    // send(sockfd, header, strlen(header), 0);
+
+    //sprintf (sendbuf, "GET / HTTP/1.0\n\n");
+    printf ("%s", sendbuf);
+
+    send(sockfd, sendbuf, strlen(sendbuf), 0);
+    
+    recv (sockfd, expected, sizeof(expected), 0);
+    recv (sockfd, recvbuf, sizeof(recvbuf), 0);
+    printf ("%s", expected);
+    printf ("%s", recvbuf);
+
+    //TODO: trimitere comanda
 }
 
 int main(int argc, char *argv[])
@@ -75,7 +132,7 @@ int main(int argc, char *argv[])
     //adaugam noul file descriptor (socketul pe care se asculta conexiuni) in multimea read_fds
     FD_SET(sockfd, &read_fds);
     fdmax = sockfd;
-	gethost("ocw.cs.pub.ro");
+	//gethost("ocw.cs.pub.ro");
     // main loop
     while (1)
     {
@@ -104,7 +161,7 @@ int main(int argc, char *argv[])
 			    fdmax = newsockfd;
 			}
 		    }
-		    printf("Noua conexiune de la %s, port %d, socket_client %d\n ", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port), newsockfd);
+		    //printf("Noua conexiune de la %s, port %d, socket_client %d\n ", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port), newsockfd);
 		}
 
 		else
@@ -129,13 +186,67 @@ int main(int argc, char *argv[])
 
 		    else
 		    { //recv intoarce >0
-			printf("Am primit de la clientul de pe socketul %d, mesajul: %s\n", i, buffer);
-		    }
+			//printf("Am primit de la clientul de pe socketul %d, mesajul:%d %s", i, strlen(buffer), buffer);
+			// int cached = 1;
+			//printf ("%s", buffer);
+			char* line = strtok (buffer, "\n");
+			line = strtok (NULL, "\n");
+			//printf ("%s\n\n", line);
+			char* host = strtok (line, " ");
+			host = strtok (NULL, " \n");
+			//printf ("%d %s\n\n", strlen(host), host);
+			char* s = malloc (sizeof(char) * (strlen(host) - 1));
+			int k = 0;
+			while (k < strlen(host) - 1){
+				s[k] = host[k];
+				k++;
+			}
+			//printf("%s\n\n");
+			printf ("%s", buffer);
+			if (strcmp (s, "ocw.cs.pub.ro") == 0){
+				printf ("FUCK C\n\n");
+				gethost("ocw.cs.pub.ro");
+
+			}
+			else
+				printf ("I don't even know anymore");
+
+			// 	k++;
+			// }
+			// char* s = malloc (sizeof(char) * strlen (buffer));
+			// int k = 0;
+			// while (k < strlen(buffer) - 2){
+			// 	s[k] = buffer[k];
+			// 	k++;
+			// }
+			// printf ("WHAT DA FUCK IS HAPPENING");
+			// printf ("HELLO%s", s);
+			// struct sockaddr_in addr;
+			// memset((char *)&serv_addr, 0, sizeof(serv_addr));
+    		// addr.sin_family = AF_INET;
+    		// addr.sin_port = htons(80);
+			// inet_aton(gethost(s), & addr.sin_addr);
+			// int socketn;
+			// socketn = socket(AF_INET, SOCK_STREAM, 0);
+
+			// if (connect(socketn, (struct sockaddr * ) & addr, sizeof(addr)) < 0) {
+       		// 	printf("Eroare la conectare\n");
+        	// 	exit(-1);
+    		// }
+
+			// char* sendbuf = malloc (sizeof(char) * 250);
+			// sprintf (sendbuf, "GET / HTTP/1.0\n\n");
+			// memset(buffer, 0, sizeof(buffer));
+			// char buffer2[MAXLEN];
+			// send_command(socketn, sendbuf, buffer2);
+ 
+
+
 		}
 	    }
 	}
     }
-
+	}
     close(sockfd);
 
     return 0;
